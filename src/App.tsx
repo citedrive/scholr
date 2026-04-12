@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ResearchSession } from "@/types/research";
 import { MOCK_SESSIONS, createEmptySession, generateStepData } from "@/data/mock-data";
 import { Sidebar } from "@/components/sidebar/Sidebar";
@@ -8,6 +8,12 @@ import {
 } from "@/components/chat/ChatInput";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { ExportSidebar } from "@/components/export/ExportSidebar";
+import { SettingsDialog } from "@/components/settings/SettingsDialog";
+import {
+  DEFAULT_PROVIDER_SETTINGS,
+  enabledModelIds,
+  type ProviderModelSettings,
+} from "@/lib/model-settings";
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -59,6 +65,22 @@ function App() {
   const [chatModel, setChatModel] = useState<ChatModelId>(
     CHAT_MODEL_OPTIONS[0].id,
   );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [providerSettings, setProviderSettings] = useState<
+    Record<ChatModelId, ProviderModelSettings>
+  >(() => ({ ...DEFAULT_PROVIDER_SETTINGS }));
+
+  const enabledIds = useMemo(
+    () => enabledModelIds(providerSettings),
+    [providerSettings],
+  );
+
+  useEffect(() => {
+    if (enabledIds.length === 0) return;
+    if (!enabledIds.includes(chatModel)) {
+      setChatModel(enabledIds[0]);
+    }
+  }, [enabledIds, chatModel]);
 
   const activeSession = sessions.find((s) => s.id === activeId) ?? null;
 
@@ -81,6 +103,7 @@ function App() {
         activeId={activeId}
         onNewSearch={handleNewSearch}
         onSelectSession={setActiveId}
+        onSettingsClick={() => setSettingsOpen(true)}
       />
       <main className="flex flex-1 flex-col overflow-hidden">
         <ChatArea
@@ -88,9 +111,16 @@ function App() {
           onSubmit={handleSubmit}
           model={chatModel}
           onModelChange={setChatModel}
+          enabledModelIds={enabledIds}
         />
       </main>
       <ExportSidebar session={activeSession} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={providerSettings}
+        onSettingsChange={setProviderSettings}
+      />
     </div>
   );
 }

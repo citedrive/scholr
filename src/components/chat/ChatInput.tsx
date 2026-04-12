@@ -20,6 +20,8 @@ interface ChatInputProps {
   /** Initial model when uncontrolled */
   defaultModel?: ChatModelId;
   onModelChange?: (id: ChatModelId) => void;
+  /** Providers enabled in settings; model picker lists only these */
+  enabledModelIds: ChatModelId[];
 }
 
 export function ChatInput({
@@ -29,6 +31,7 @@ export function ChatInput({
   model: modelControlled,
   defaultModel = CHAT_MODEL_OPTIONS[0].id,
   onModelChange,
+  enabledModelIds,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
   const [internalModel, setInternalModel] = useState<ChatModelId>(defaultModel);
@@ -44,9 +47,16 @@ export function ChatInput({
     if (!isControlled) setInternalModel(id);
   }
 
+  const pickerOptions = CHAT_MODEL_OPTIONS.filter((m) =>
+    enabledModelIds.includes(m.id),
+  );
+
   const selectedLabel =
-    CHAT_MODEL_OPTIONS.find((m) => m.id === selectedId)?.label ??
-    CHAT_MODEL_OPTIONS[0].label;
+    pickerOptions.find((m) => m.id === selectedId)?.label ??
+    pickerOptions[0]?.label ??
+    "No model";
+
+  const pickerDisabled = pickerOptions.length === 0;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -58,6 +68,12 @@ export function ChatInput({
     document.addEventListener("pointerdown", handlePointerDown);
     return () => document.removeEventListener("pointerdown", handlePointerDown);
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (pickerDisabled && menuOpen) {
+      setMenuOpen(false);
+    }
+  }, [pickerDisabled, menuOpen]);
 
   function handleSubmit() {
     const trimmed = value.trim();
@@ -100,22 +116,35 @@ export function ChatInput({
         <div className="relative" ref={menuRef}>
           <button
             type="button"
-            onClick={() => setMenuOpen((o) => !o)}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+            disabled={pickerDisabled}
+            onClick={() => {
+              if (pickerDisabled) return;
+              setMenuOpen((o) => !o);
+            }}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             aria-expanded={menuOpen}
             aria-haspopup="listbox"
-            aria-label="Choose model"
+            aria-label={
+              pickerDisabled
+                ? "No model providers enabled — open Settings"
+                : "Choose model"
+            }
+            title={
+              pickerDisabled
+                ? "Enable a provider in Settings to choose a model"
+                : undefined
+            }
           >
             {selectedLabel}
             <ChevronUpIcon className="size-3 text-muted-foreground" />
           </button>
-          {menuOpen ? (
+          {menuOpen && !pickerDisabled ? (
             <ul
               className="absolute bottom-full left-0 z-20 mb-1 min-w-40 rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-md"
               role="listbox"
               aria-label="Model"
             >
-              {CHAT_MODEL_OPTIONS.map((opt) => (
+              {pickerOptions.map((opt) => (
                 <li key={opt.id} role="presentation">
                   <button
                     type="button"

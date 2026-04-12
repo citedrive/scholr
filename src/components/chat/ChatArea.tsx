@@ -7,6 +7,7 @@ interface ChatAreaProps {
   onSubmit: (query: string) => void;
   model: ChatModelId;
   onModelChange: (id: ChatModelId) => void;
+  enabledModelIds: ChatModelId[];
 }
 
 export function ChatArea({
@@ -14,6 +15,7 @@ export function ChatArea({
   onSubmit,
   model,
   onModelChange,
+  enabledModelIds,
 }: ChatAreaProps) {
   if (session) {
     return <ResearchView session={session} />;
@@ -27,6 +29,7 @@ export function ChatArea({
           borderless
           model={model}
           onModelChange={onModelChange}
+          enabledModelIds={enabledModelIds}
         />
       </div>
     </div>
