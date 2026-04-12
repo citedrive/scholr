@@ -2,6 +2,10 @@ import { useState } from "react";
 import type { ResearchSession } from "@/types/research";
 import { MOCK_SESSIONS, createEmptySession, generateStepData } from "@/data/mock-data";
 import { Sidebar } from "@/components/sidebar/Sidebar";
+import {
+  CHAT_MODEL_OPTIONS,
+  type ChatModelId,
+} from "@/components/chat/ChatInput";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { ExportSidebar } from "@/components/export/ExportSidebar";
 
@@ -52,6 +56,9 @@ function App() {
   const [activeId, setActiveId] = useState<string | null>(
     MOCK_SESSIONS[0]?.id ?? null,
   );
+  const [chatModel, setChatModel] = useState<ChatModelId>(
+    CHAT_MODEL_OPTIONS[0].id,
+  );
 
   const activeSession = sessions.find((s) => s.id === activeId) ?? null;
 
@@ -76,7 +83,12 @@ function App() {
         onSelectSession={setActiveId}
       />
       <main className="flex flex-1 flex-col overflow-hidden">
-        <ChatArea session={activeSession} onSubmit={handleSubmit} />
+        <ChatArea
+          session={activeSession}
+          onSubmit={handleSubmit}
+          model={chatModel}
+          onModelChange={setChatModel}
+        />
       </main>
       <ExportSidebar session={activeSession} />
     </div>
