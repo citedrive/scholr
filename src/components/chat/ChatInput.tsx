@@ -1,26 +1,63 @@
-import { useRef, useState } from "react";
-import {
-  ArrowRightIcon,
-  ChevronDownIcon,
-  CounterClockwiseClockIcon,
-  CrossCircledIcon,
-  PlusIcon,
-} from "@radix-ui/react-icons";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRightIcon, ChevronUpIcon } from "@radix-ui/react-icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+
+export const CHAT_MODEL_OPTIONS = [
+  { id: "chatgpt", label: "ChatGPT" },
+  { id: "ollama", label: "Ollama" },
+  { id: "claude", label: "Claude" },
+] as const;
+
+export type ChatModelId = (typeof CHAT_MODEL_OPTIONS)[number]["id"];
+
 interface ChatInputProps {
   onSubmit: (content: string) => void;
   disabled?: boolean;
   borderless?: boolean;
+  /** Controlled selected model id */
+  model?: ChatModelId;
+  /** Initial model when uncontrolled */
+  defaultModel?: ChatModelId;
+  onModelChange?: (id: ChatModelId) => void;
 }
 
 export function ChatInput({
   onSubmit,
   disabled = false,
   borderless = false,
+  model: modelControlled,
+  defaultModel = CHAT_MODEL_OPTIONS[0].id,
+  onModelChange,
 }: ChatInputProps) {
   const [value, setValue] = useState("");
+  const [internalModel, setInternalModel] = useState<ChatModelId>(defaultModel);
+  const [menuOpen, setMenuOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const isControlled = modelControlled !== undefined;
+  const selectedId = isControlled ? modelControlled : internalModel;
+
+  function setModel(id: ChatModelId) {
+    onModelChange?.(id);
+    if (!isControlled) setInternalModel(id);
+  }
+
+  const selectedLabel =
+    CHAT_MODEL_OPTIONS.find((m) => m.id === selectedId)?.label ??
+    CHAT_MODEL_OPTIONS[0].label;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handlePointerDown(e: PointerEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [menuOpen]);
 
   function handleSubmit() {
     const trimmed = value.trim();
@@ -48,7 +85,6 @@ export function ChatInput({
 
   const card = (
     <div className="rounded-2xl border border-border bg-background shadow-sm">
-      {/* Text area */}
       <Textarea
         ref={textareaRef}
         rows={3}
@@ -60,35 +96,45 @@ export function ChatInput({
         className="min-h-[80px] max-h-[200px] resize-none overflow-y-auto border-none bg-transparent px-4 pt-3 pb-2 text-sm leading-relaxed shadow-none focus-visible:ring-0 focus-visible:border-none"
       />
 
-      {/* Toolbar */}
       <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
-        {/* Left controls */}
-        <div className="flex items-center gap-1.5">
-          {/* Agent selector */}
-          <button className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent">
-            <CrossCircledIcon className="size-3.5 text-muted-foreground" />
-            Research agent
-            <ChevronDownIcon className="size-3 text-muted-foreground" />
+        <div className="relative" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+            aria-expanded={menuOpen}
+            aria-haspopup="listbox"
+            aria-label="Choose model"
+          >
+            {selectedLabel}
+            <ChevronUpIcon className="size-3 text-muted-foreground" />
           </button>
-
-          {/* Mode selector */}
-          <button className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent">
-            General
-            <ChevronDownIcon className="size-3 text-muted-foreground" />
-          </button>
-
-          {/* History */}
-          <button className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-            <CounterClockwiseClockIcon className="size-3.5" />
-          </button>
-
-          {/* Attach */}
-          <button className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
-            <PlusIcon className="size-3.5" />
-          </button>
+          {menuOpen ? (
+            <ul
+              className="absolute bottom-full left-0 z-20 mb-1 min-w-40 rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-md"
+              role="listbox"
+              aria-label="Model"
+            >
+              {CHAT_MODEL_OPTIONS.map((opt) => (
+                <li key={opt.id} role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={opt.id === selectedId}
+                    className="flex w-full items-center px-3 py-2 text-left text-xs hover:bg-accent"
+                    onClick={() => {
+                      setModel(opt.id);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
 
-        {/* Send button */}
         <Button
           onClick={handleSubmit}
           disabled={!value.trim() || disabled}
