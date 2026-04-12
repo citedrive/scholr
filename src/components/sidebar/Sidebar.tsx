@@ -1,4 +1,4 @@
-import { Pencil2Icon } from "@radix-ui/react-icons";
+import { MixerHorizontalIcon, Pencil2Icon } from "@radix-ui/react-icons";
 import type { ResearchSession } from "@/types/research";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,6 +9,7 @@ interface SidebarProps {
   activeId: string | null;
   onNewSearch: () => void;
   onSelectSession: (id: string) => void;
+  onSettingsClick: () => void;
 }
 
 export function Sidebar({
@@ -16,6 +17,7 @@ export function Sidebar({
   activeId,
   onNewSearch,
   onSelectSession,
+  onSettingsClick,
 }: SidebarProps) {
   return (
     <aside className="flex h-full w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
@@ -54,6 +56,18 @@ export function Sidebar({
           )}
         </div>
       </ScrollArea>
+
+      <div className="mt-auto shrink-0 border-t border-sidebar-border px-2 py-2">
+        <Button
+          type="button"
+          onClick={onSettingsClick}
+          variant="ghost"
+          className="w-full justify-start gap-2.5 px-3 py-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        >
+          <MixerHorizontalIcon className="size-4 shrink-0" />
+          Settings
+        </Button>
+      </div>
     </aside>
   );
 }
