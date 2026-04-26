@@ -227,6 +227,12 @@ export function PipelineStepCard({ step, index }: PipelineStepCardProps) {
           <StepContent step={step} />
         </div>
       )}
+
+      {step.status === "error" && step.errorMessage && (
+        <div className="border-t border-destructive/30 px-4 py-3">
+          <p className="text-xs text-destructive">{step.errorMessage}</p>
+        </div>
+      )}
     </div>
   );
 }

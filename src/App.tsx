@@ -14,6 +14,7 @@ import {
   enabledModelIds,
   type ProviderModelSettings,
 } from "@/lib/model-settings";
+import { extractKeywords } from "@/lib/model-service";
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -21,15 +22,17 @@ function makeId() {
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-// How long each step spends in "running" before resolving to "done"
-const STEP_DURATIONS = [800, 1000, 700, 700, 1400];
+// How long steps 1–4 spend in "running" before resolving to "done"
+const STEP_DURATIONS = [1000, 700, 700, 1400];
 
-async function simulatePipeline(
+async function runPipeline(
   sessionId: string,
   query: string,
+  provider: ChatModelId,
+  modelName: string,
   setSessions: React.Dispatch<React.SetStateAction<ResearchSession[]>>,
 ) {
-  const stepData = generateStepData(query);
+  const mockStepData = generateStepData(query);
 
   const updateStep = (
     index: number,
@@ -48,12 +51,25 @@ async function simulatePipeline(
     );
   };
 
-  for (let i = 0; i < STEP_DURATIONS.length; i++) {
-    // Brief pause before activating next step
-    await delay(i === 0 ? 300 : 200);
+  // Step 0 — keywords: real model call; stop the pipeline on failure
+  await delay(300);
+  updateStep(0, { status: "running" });
+  try {
+    const keywords = await extractKeywords(query, provider, modelName);
+    updateStep(0, { status: "done", data: { keywords } });
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("[model-service] extract_keywords failed:", errorMessage);
+    updateStep(0, { status: "error", errorMessage });
+    return;
+  }
+
+  // Steps 1–4 — search, collect, filter, evaluate: simulated
+  for (let i = 1; i < mockStepData.length; i++) {
+    await delay(200);
     updateStep(i, { status: "running" });
-    await delay(STEP_DURATIONS[i]);
-    updateStep(i, { status: "done", data: stepData[i] });
+    await delay(STEP_DURATIONS[i - 1]);
+    updateStep(i, { status: "done", data: mockStepData[i] });
   }
 }
 
@@ -93,7 +109,7 @@ function App() {
     const session = createEmptySession(id, query);
     setSessions((prev) => [session, ...prev]);
     setActiveId(id);
-    simulatePipeline(id, query, setSessions);
+    runPipeline(id, query, chatModel, providerSettings[chatModel].modelName, setSessions);
   }
 
   return (
