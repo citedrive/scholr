@@ -20,6 +20,13 @@ function makePipeline(overrides?: {
   const total = overrides?.paperTotal ?? 2_893;
   const removed = overrides?.filterRemoved ?? 412;
 
+  // Build two concept groups from the four keyword terms for the mock combine step
+  const group1Terms = [terms[0], terms[1]].filter(Boolean);
+  const group2Terms = [terms[2], terms[3]].filter(Boolean);
+  const searchString =
+    `(${group1Terms.map((t) => `"${t}"`).join(" OR ")})` +
+    ` AND (${group2Terms.map((t) => `"${t}"`).join(" OR ")})`;
+
   return [
     {
       id: "keywords",
@@ -32,6 +39,18 @@ function makePipeline(overrides?: {
           { term: terms[2], count: Math.round(total * 0.19) },
           { term: terms[3] ?? "ut labore", count: Math.round(total * 0.08) },
         ],
+      },
+    },
+    {
+      id: "combine",
+      label: "Query construction",
+      status: "done",
+      data: {
+        groups: [
+          { label: "Concept A", terms: group1Terms },
+          { label: "Concept B", terms: group2Terms },
+        ],
+        searchString,
       },
     },
     {
@@ -199,10 +218,11 @@ export const MOCK_SESSIONS: ResearchSession[] = [
 export function createEmptySession(id: string, query: string): ResearchSession {
   const STEP_LABELS: PipelineStep[] = [
     { id: "keywords", label: "Keyword analysis",   status: "pending" },
+    { id: "combine",  label: "Query construction",  status: "pending" },
     { id: "search",   label: "Database search",     status: "pending" },
-    { id: "collect",  label: "Paper collection",     status: "pending" },
-    { id: "filter",   label: "Abstract filter",    status: "pending" },
-    { id: "evaluate", label: "Relevance scoring", status: "pending" },
+    { id: "collect",  label: "Paper collection",    status: "pending" },
+    { id: "filter",   label: "Abstract filter",     status: "pending" },
+    { id: "evaluate", label: "Relevance scoring",   status: "pending" },
   ];
   return { id, query, createdAt: new Date(), steps: STEP_LABELS };
 }

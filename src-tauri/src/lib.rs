@@ -9,6 +9,7 @@ pub fn run() {
             model_service::set_api_key,
             model_service::has_api_key,
             model_service::extract_keywords,
+            model_service::combine_keywords,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

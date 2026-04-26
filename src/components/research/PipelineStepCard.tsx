@@ -4,6 +4,7 @@ import type {
   PipelineStep,
   StepStatus,
   KeywordsStepData,
+  CombineStepData,
   SearchStepData,
   CollectStepData,
   FilterStepData,
@@ -63,6 +64,53 @@ function KeywordsContent({ data }: { data: KeywordsStepData }) {
     </div>
   );
 }
+
+function CombineContent({ data }: { data: CombineStepData }) {
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Concept groups with OR/AND connectors */}
+      <div className="flex flex-wrap items-start gap-2">
+        {data.groups.map((group, gi) => (
+          <div key={group.label} className="flex items-start gap-2">
+            {/* Group chip cluster */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {group.label}
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                {group.terms.map((term, ti) => (
+                  <div key={term} className="flex items-center gap-1">
+                    <span className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium">
+                      {term}
+                    </span>
+                    {ti < group.terms.length - 1 && (
+                      <span className="text-[10px] font-semibold text-muted-foreground">OR</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* AND connector between groups */}
+            {gi < data.groups.length - 1 && (
+              <span className="mt-5 shrink-0 rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                AND
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Boolean search string */}
+      <div className="rounded-md border border-border bg-muted/50 px-3 py-2">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Search string
+        </p>
+        <code className="break-all text-xs text-foreground">{data.searchString}</code>
+      </div>
+    </div>
+  );
+}
+
 
 function SearchContent({ data }: { data: SearchStepData }) {
   return (
@@ -181,6 +229,7 @@ function StepContent({ step }: { step: PipelineStep }) {
   if (!step.data) return null;
   switch (step.id) {
     case "keywords":  return <KeywordsContent data={step.data as KeywordsStepData} />;
+    case "combine":   return <CombineContent  data={step.data as CombineStepData} />;
     case "search":    return <SearchContent   data={step.data as SearchStepData} />;
     case "collect":   return <CollectContent  data={step.data as CollectStepData} />;
     case "filter":    return <FilterContent   data={step.data as FilterStepData} />;
