@@ -196,23 +196,6 @@ export const MOCK_SESSIONS: ResearchSession[] = [
   },
 ];
 
-export function createMockSession(id: string, query: string): ResearchSession {
-  const words = query.trim().split(/\s+/);
-  return {
-    id,
-    query,
-    createdAt: new Date(),
-    steps: makePipeline({
-      keywordTerms: [
-        words.slice(0, 2).join(" "),
-        words.slice(1, 3).join(" ") || "lorem ipsum",
-        words.slice(2, 4).join(" ") || "dolor amet",
-        "ut labore dolore",
-      ],
-    }),
-  };
-}
-
 export function createEmptySession(id: string, query: string): ResearchSession {
   const STEP_LABELS: PipelineStep[] = [
     { id: "keywords", label: "Keyword analysis",   status: "pending" },

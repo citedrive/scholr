@@ -63,6 +63,8 @@ export interface PipelineStep {
   label: string;
   status: StepStatus;
   data?: StepData;
+  /** Set when this step fails, contains the human-readable error from the service. */
+  errorMessage?: string;
 }
 
 export interface ResearchSession {

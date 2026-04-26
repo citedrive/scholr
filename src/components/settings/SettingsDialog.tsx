@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   CHAT_MODEL_OPTIONS,
   type ChatModelId,
@@ -13,9 +14,11 @@ import {
   DialogViewport,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import type { ProviderModelSettings } from "@/lib/model-settings";
 import { enabledModelIds } from "@/lib/model-settings";
+import { setApiKey, hasApiKey } from "@/lib/model-service";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -26,12 +29,31 @@ interface SettingsDialogProps {
   ) => void;
 }
 
+const PROVIDERS_WITH_KEYS: ChatModelId[] = ["chatgpt", "claude"];
+
 export function SettingsDialog({
   open,
   onOpenChange,
   settings,
   onSettingsChange,
 }: SettingsDialogProps) {
+  const [keyInputs, setKeyInputs] = useState<Partial<Record<ChatModelId, string>>>({});
+  const [keyStatuses, setKeyStatuses] = useState<Partial<Record<ChatModelId, boolean>>>({});
+  const [saving, setSaving] = useState<Partial<Record<ChatModelId, boolean>>>({});
+
+  useEffect(() => {
+    if (!open) return;
+    setKeyInputs({});
+    Promise.all(
+      PROVIDERS_WITH_KEYS.map(async (id) => {
+        const has = await hasApiKey(id).catch(() => false);
+        return [id, has] as const;
+      }),
+    ).then((entries) => {
+      setKeyStatuses(Object.fromEntries(entries));
+    });
+  }, [open]);
+
   function updateProvider(
     id: ChatModelId,
     patch: Partial<ProviderModelSettings>,
@@ -55,6 +77,18 @@ export function SettingsDialog({
     updateProvider(id, { enabled: checked });
   }
 
+  async function handleSaveKey(id: ChatModelId) {
+    const key = keyInputs[id]?.trim() ?? "";
+    setSaving((prev) => ({ ...prev, [id]: true }));
+    try {
+      await setApiKey(id, key);
+      setKeyStatuses((prev) => ({ ...prev, [id]: key.length > 0 }));
+      setKeyInputs((prev) => ({ ...prev, [id]: "" }));
+    } finally {
+      setSaving((prev) => ({ ...prev, [id]: false }));
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPortal>
@@ -71,13 +105,26 @@ export function SettingsDialog({
             <div className="mt-6 flex flex-col gap-5">
               {CHAT_MODEL_OPTIONS.map((opt) => {
                 const row = settings[opt.id];
+                const needsKey = PROVIDERS_WITH_KEYS.includes(opt.id);
+                const hasSavedKey = keyStatuses[opt.id] ?? false;
+                const inputVal = keyInputs[opt.id] ?? "";
+                const isSaving = saving[opt.id] ?? false;
+
                 return (
                   <div
                     key={opt.id}
                     className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-medium">{opt.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{opt.label}</span>
+                        {needsKey && hasSavedKey && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
+                            <span className="size-1.5 rounded-full bg-green-500" />
+                            Key saved
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
                           Active
@@ -90,6 +137,7 @@ export function SettingsDialog({
                         />
                       </div>
                     </div>
+
                     <label className="flex flex-col gap-1.5">
                       <span className="text-xs font-medium text-muted-foreground">
                         Model id
@@ -106,6 +154,59 @@ export function SettingsDialog({
                         autoComplete="off"
                       />
                     </label>
+
+                    {needsKey && (
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          API key
+                        </span>
+                        <div className="flex gap-2">
+                          <Input
+                            type="password"
+                            value={inputVal}
+                            onChange={(e) =>
+                              setKeyInputs((prev) => ({
+                                ...prev,
+                                [opt.id]: e.target.value,
+                              }))
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveKey(opt.id);
+                            }}
+                            placeholder={
+                              hasSavedKey
+                                ? "Key saved — paste new to replace"
+                                : "Paste API key…"
+                            }
+                            autoComplete="off"
+                            className="flex-1 font-mono text-xs"
+                          />
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={inputVal.trim().length === 0 || isSaving}
+                            onClick={() => handleSaveKey(opt.id)}
+                          >
+                            {isSaving ? "Saving…" : "Save"}
+                          </Button>
+                        </div>
+                        {hasSavedKey && (
+                          <button
+                            type="button"
+                            className="self-start text-xs text-muted-foreground underline-offset-2 hover:text-destructive hover:underline"
+                            onClick={async () => {
+                              await setApiKey(opt.id, "");
+                              setKeyStatuses((prev) => ({
+                                ...prev,
+                                [opt.id]: false,
+                              }));
+                            }}
+                          >
+                            Clear saved key
+                          </button>
+                        )}
+                      </label>
+                    )}
                   </div>
                 );
               })}
