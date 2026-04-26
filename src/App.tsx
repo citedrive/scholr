@@ -14,7 +14,7 @@ import {
   enabledModelIds,
   type ProviderModelSettings,
 } from "@/lib/model-settings";
-import { extractKeywords } from "@/lib/model-service";
+import { extractKeywords, combineKeywords } from "@/lib/model-service";
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -22,7 +22,7 @@ function makeId() {
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-// How long steps 1–4 spend in "running" before resolving to "done"
+// How long steps 2–5 spend in "running" before resolving to "done"
 const STEP_DURATIONS = [1000, 700, 700, 1400];
 
 async function runPipeline(
@@ -54,9 +54,11 @@ async function runPipeline(
   // Step 0 — keywords: real model call; stop the pipeline on failure
   await delay(300);
   updateStep(0, { status: "running" });
+  let extractedTerms: string[];
   try {
     const keywords = await extractKeywords(query, provider, modelName);
     updateStep(0, { status: "done", data: { keywords } });
+    extractedTerms = keywords.map((k) => k.term);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     console.error("[model-service] extract_keywords failed:", errorMessage);
@@ -64,11 +66,24 @@ async function runPipeline(
     return;
   }
 
-  // Steps 1–4 — search, collect, filter, evaluate: simulated
-  for (let i = 1; i < mockStepData.length; i++) {
+  // Step 1 — combine: real model call; stop the pipeline on failure
+  await delay(200);
+  updateStep(1, { status: "running" });
+  try {
+    const combineData = await combineKeywords(query, extractedTerms, provider, modelName);
+    updateStep(1, { status: "done", data: combineData });
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("[model-service] combine_keywords failed:", errorMessage);
+    updateStep(1, { status: "error", errorMessage });
+    return;
+  }
+
+  // Steps 2–5 — search, collect, filter, evaluate: simulated
+  for (let i = 2; i < mockStepData.length; i++) {
     await delay(200);
     updateStep(i, { status: "running" });
-    await delay(STEP_DURATIONS[i - 1]);
+    await delay(STEP_DURATIONS[i - 2]);
     updateStep(i, { status: "done", data: mockStepData[i] });
   }
 }

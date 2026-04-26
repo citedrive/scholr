@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { KeywordResult } from "@/types/research";
+import type { KeywordResult, CombineStepData } from "@/types/research";
 import type { ChatModelId } from "@/components/chat/ChatInput";
-import { KEYWORD_SYSTEM_PROMPT } from "@/lib/system-prompts";
+import { KEYWORD_SYSTEM_PROMPT, COMBINE_SYSTEM_PROMPT } from "@/lib/system-prompts";
 
 /**
  * Persist an API key for the given provider in the Tauri secure store.
@@ -38,4 +38,25 @@ export async function extractKeywords(
     systemPrompt: KEYWORD_SYSTEM_PROMPT,
   });
   return terms.map((term) => ({ term, count: 0 }));
+}
+
+/**
+ * Call the model service to group the extracted keywords into concept clusters
+ * and build a boolean search string (OR within groups, AND between groups).
+ *
+ * Throws if the provider is unknown or the API call fails.
+ */
+export async function combineKeywords(
+  query: string,
+  keywords: string[],
+  provider: ChatModelId,
+  model: string,
+): Promise<CombineStepData> {
+  return invoke<CombineStepData>("combine_keywords", {
+    query,
+    keywords,
+    provider,
+    model,
+    systemPrompt: COMBINE_SYSTEM_PROMPT,
+  });
 }

@@ -2,6 +2,7 @@ export type StepStatus = "pending" | "running" | "done" | "error";
 
 export type StepId =
   | "keywords"
+  | "combine"
   | "search"
   | "collect"
   | "filter"
@@ -31,6 +32,16 @@ export interface KeywordsStepData {
   keywords: KeywordResult[];
 }
 
+export interface KeywordGroup {
+  label: string;
+  terms: string[];
+}
+
+export interface CombineStepData {
+  groups: KeywordGroup[];
+  searchString: string;
+}
+
 export interface SearchStepData {
   total: number;
   sources: SearchSource[];
@@ -53,6 +64,7 @@ export interface EvaluateStepData {
 
 export type StepData =
   | KeywordsStepData
+  | CombineStepData
   | SearchStepData
   | CollectStepData
   | FilterStepData
