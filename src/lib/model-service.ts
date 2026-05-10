@@ -42,7 +42,8 @@ export async function extractKeywords(
 
 /**
  * Call the model service to group the extracted keywords into concept clusters
- * and build a boolean search string (OR within groups, AND between groups).
+ * and build boolean search strings: a broad recall-oriented query plus a narrower
+ * precise variant (OR within groups, AND between groups).
  *
  * Throws if the provider is unknown or the API call fails.
  */

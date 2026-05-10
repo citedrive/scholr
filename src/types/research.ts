@@ -1,3 +1,5 @@
+import type { SearchApiId } from "@/lib/search-databases";
+
 export type StepStatus = "pending" | "running" | "done" | "error";
 
 export type StepId =
@@ -12,6 +14,8 @@ export interface KeywordResult {
   term: string;
   count: number;
 }
+
+export type SearchQueryVariant = "broad" | "narrow";
 
 export interface SearchSource {
   name: string;
@@ -39,12 +43,24 @@ export interface KeywordGroup {
 
 export interface CombineStepData {
   groups: KeywordGroup[];
+  /** Broad boolean query — OR within groups, AND across groups (maximal recall). */
   searchString: string;
+  /** Narrower alternative — fewer synonyms per concept for higher precision / smaller result sets. */
+  preciseSearchString: string;
 }
 
 export interface SearchStepData {
+  /** Total hits reported by the index (may exceed what we fetched). */
   total: number;
+  /** Number of records returned on this page. */
+  hitsReturned: number;
   sources: SearchSource[];
+  chosenApi: SearchApiId;
+  queryVariant: SearchQueryVariant;
+  /** Boolean string sent to the selected database (general or narrow). */
+  queryUsed: string;
+  /** Retrieved records with pseudo relevance scores for quick review. */
+  papers: Paper[];
 }
 
 export interface CollectStepData {

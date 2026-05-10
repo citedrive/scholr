@@ -18,6 +18,17 @@ pub struct CombineStepData {
     pub groups: Vec<KeywordGroup>,
     #[serde(rename = "searchString")]
     pub search_string: String,
+    #[serde(rename = "preciseSearchString")]
+    pub precise_search_string: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct CombineStepPartial {
+    groups: Vec<KeywordGroup>,
+    #[serde(rename = "searchString")]
+    search_string: String,
+    #[serde(rename = "preciseSearchString")]
+    precise_search_string: Option<String>,
 }
 
 // ── Key management ────────────────────────────────────────────────────────────
@@ -274,19 +285,39 @@ fn parse_keywords(content: &str) -> Result<Vec<String>, String> {
     ))
 }
 
+fn narrow_fallback_from_groups(groups: &[KeywordGroup]) -> String {
+    groups
+        .iter()
+        .filter_map(|g| g.terms.first())
+        .map(|t| format!("\"{t}\""))
+        .collect::<Vec<_>>()
+        .join(" AND ")
+}
+
+fn finalize_combine(partial: CombineStepPartial) -> CombineStepData {
+    let precise = partial.precise_search_string.unwrap_or_else(|| {
+        narrow_fallback_from_groups(&partial.groups)
+    });
+    CombineStepData {
+        groups: partial.groups,
+        search_string: partial.search_string,
+        precise_search_string: precise,
+    }
+}
+
 /// Parse a CombineStepData JSON object from model output.
 fn parse_combine(content: &str) -> Result<CombineStepData, String> {
     let inner = strip_fences(content);
 
-    if let Ok(data) = serde_json::from_str::<CombineStepData>(&inner) {
-        return Ok(data);
+    if let Ok(partial) = serde_json::from_str::<CombineStepPartial>(&inner) {
+        return Ok(finalize_combine(partial));
     }
 
     // Fall back: find the first '{' ... '}' substring
     if let (Some(start), Some(end)) = (inner.find('{'), inner.rfind('}')) {
         let slice = &inner[start..=end];
-        if let Ok(data) = serde_json::from_str::<CombineStepData>(slice) {
-            return Ok(data);
+        if let Ok(partial) = serde_json::from_str::<CombineStepPartial>(slice) {
+            return Ok(finalize_combine(partial));
         }
     }
 
