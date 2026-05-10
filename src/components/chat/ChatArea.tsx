@@ -1,5 +1,6 @@
 import type { ResearchSession } from "@/types/research";
 import { ResearchView } from "@/components/research/ResearchView";
+import type { DatabaseSearchRunPayload } from "@/components/research/PipelineStepCard";
 import { ChatInput, type ChatModelId } from "./ChatInput";
 
 interface ChatAreaProps {
@@ -8,6 +9,10 @@ interface ChatAreaProps {
   model: ChatModelId;
   onModelChange: (id: ChatModelId) => void;
   enabledModelIds: ChatModelId[];
+  onRunDatabaseSearch: (
+    sessionId: string,
+    payload: DatabaseSearchRunPayload,
+  ) => void;
 }
 
 export function ChatArea({
@@ -16,9 +21,15 @@ export function ChatArea({
   model,
   onModelChange,
   enabledModelIds,
+  onRunDatabaseSearch,
 }: ChatAreaProps) {
   if (session) {
-    return <ResearchView session={session} />;
+    return (
+      <ResearchView
+        session={session}
+        onRunDatabaseSearch={onRunDatabaseSearch}
+      />
+    );
   }
 
   return (

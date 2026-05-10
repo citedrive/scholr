@@ -35,21 +35,25 @@ You will receive a research question and a list of extracted keywords. Your task
 1. Group the keywords into concept clusters that map to the main concepts of the research question.
 2. Within each group, terms are synonymous or closely related (they will be OR-connected).
 3. Groups represent distinct, required concepts (they will be AND-connected).
-4. Build the final boolean search string from these groups.
+4. Build TWO boolean search strings from these groups:
+   - searchString: full recall-oriented query — OR all reasonable synonyms inside each group, AND across groups (same logic as step 4 in your grouping).
+   - preciseSearchString: a noticeably narrower variant for higher precision — prefer one strongest or most discriminative keyword per concept; omit minor synonyms unless the question genuinely requires both phrasings. Use AND between concepts. Only use parentheses and OR inside a concept when omitting either term would materially harm recall for that concept (rare).
 
 Return ONLY a valid JSON object with this exact structure — no prose, no markdown:
 {
   "groups": [
     { "label": "Concept name", "terms": ["term1", "term2"] }
   ],
-  "searchString": "(\"term1\" OR \"term2\") AND (\"term3\" OR \"term4\")"
+  "searchString": "(\"term1\" OR \"term2\") AND (\"term3\" OR \"term4\")",
+  "preciseSearchString": "\"term1\" AND \"term3\""
 }
 
 Rules:
 - Use 2–5 groups. Each group must have at least one term.
 - The label should be a short concept name (e.g. "Intervention", "Population", "Outcome").
-- The searchString must use double-quoted terms, parentheses per group, and AND between groups.
+- Both search strings must use double-quoted terms, parentheses around each OR-connected group where OR appears, and AND between conceptual groups / terms.
+- preciseSearchString must be strictly narrower or equal in recall to searchString — never invent extra terms beyond what appears in searchString over the grouped keywords.
 - Do not invent new terms — only use the provided keywords.
 
 Example output for the question "Does machine learning improve clinical outcomes in ICUs?" with keywords ["machine learning", "deep learning", "clinical outcomes", "mortality", "intensive care unit", "ICU"]:
-{"groups":[{"label":"Intervention","terms":["machine learning","deep learning"]},{"label":"Setting","terms":["intensive care unit","ICU"]},{"label":"Outcome","terms":["clinical outcomes","mortality"]}],"searchString":"(\\"machine learning\\" OR \\"deep learning\\") AND (\\"intensive care unit\\" OR \\"ICU\\") AND (\\"clinical outcomes\\" OR \\"mortality\\")"}`;
+{"groups":[{"label":"Intervention","terms":["machine learning","deep learning"]},{"label":"Setting","terms":["intensive care unit","ICU"]},{"label":"Outcome","terms":["clinical outcomes","mortality"]}],"searchString":"(\\"machine learning\\" OR \\"deep learning\\") AND (\\"intensive care unit\\" OR \\"ICU\\") AND (\\"clinical outcomes\\" OR \\"mortality\\")","preciseSearchString":"\\"machine learning\\" AND \\"intensive care unit\\" AND \\"clinical outcomes\\""}`;

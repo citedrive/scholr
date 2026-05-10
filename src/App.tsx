@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ResearchSession } from "@/types/research";
-import { MOCK_SESSIONS, createEmptySession, generateStepData } from "@/data/mock-data";
+import {
+  MOCK_SESSIONS,
+  createEmptySession,
+  generateTailStepData,
+} from "@/data/mock-data";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import {
   CHAT_MODEL_OPTIONS,
@@ -15,6 +19,11 @@ import {
   type ProviderModelSettings,
 } from "@/lib/model-settings";
 import { extractKeywords, combineKeywords } from "@/lib/model-service";
+import type { DatabaseSearchRunPayload } from "@/components/research/PipelineStepCard";
+import { SEARCH_DATABASE_OPTIONS } from "@/lib/search-databases";
+import type { PipelineStep, SearchStepData } from "@/types/research";
+import { searchLiterature } from "@/lib/literature-search";
+import { assignMockRelevanceScores } from "@/lib/relevance-mock";
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -22,8 +31,27 @@ function makeId() {
 
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-// How long steps 2–5 spend in "running" before resolving to "done"
-const STEP_DURATIONS = [1000, 700, 700, 1400];
+// Simulated durations for collect → filter → evaluate after database search completes
+const POST_SEARCH_STEP_DURATIONS_MS = [700, 700, 1400] as const;
+
+function patchSessionStep(
+  setSessions: React.Dispatch<React.SetStateAction<ResearchSession[]>>,
+  sessionId: string,
+  stepIndex: number,
+  patch: Partial<PipelineStep>,
+) {
+  setSessions((prev) =>
+    prev.map((s) => {
+      if (s.id !== sessionId) return s;
+      return {
+        ...s,
+        steps: s.steps.map((step, i) =>
+          i === stepIndex ? { ...step, ...patch } : step,
+        ),
+      };
+    }),
+  );
+}
 
 async function runPipeline(
   sessionId: string,
@@ -32,8 +60,6 @@ async function runPipeline(
   modelName: string,
   setSessions: React.Dispatch<React.SetStateAction<ResearchSession[]>>,
 ) {
-  const mockStepData = generateStepData(query);
-
   const updateStep = (
     index: number,
     patch: Partial<ResearchSession["steps"][number]>,
@@ -79,12 +105,105 @@ async function runPipeline(
     return;
   }
 
-  // Steps 2–5 — search, collect, filter, evaluate: simulated
-  for (let i = 2; i < mockStepData.length; i++) {
-    await delay(200);
-    updateStep(i, { status: "running" });
-    await delay(STEP_DURATIONS[i - 2]);
-    updateStep(i, { status: "done", data: mockStepData[i] });
+  // Database search onward: user picks API + query variant in "Database search", then simulated tail.
+}
+
+async function runDatabaseSearchAndPipelineTail(
+  sessionId: string,
+  payload: DatabaseSearchRunPayload,
+  setSessions: React.Dispatch<React.SetStateAction<ResearchSession[]>>,
+) {
+  let steppedIn = false;
+  setSessions((prev) => {
+    const session = prev.find((s) => s.id === sessionId);
+    if (!session?.steps[2] || session.steps[2].status !== "pending") {
+      return prev;
+    }
+    steppedIn = true;
+    return prev.map((s) => {
+      if (s.id !== sessionId) return s;
+      return {
+        ...s,
+        steps: s.steps.map((step, i) =>
+          i === 2 ? { ...step, status: "running" as const } : step,
+        ),
+      };
+    });
+  });
+
+  if (!steppedIn) return;
+
+  try {
+    const literature = await searchLiterature(
+      payload.apiId,
+      payload.queryUsed,
+    );
+    const scored = assignMockRelevanceScores(literature.papers);
+
+    const apiLabel =
+      SEARCH_DATABASE_OPTIONS.find((o) => o.id === payload.apiId)?.label ??
+      payload.apiId;
+
+    const corpusTotal = Math.max(
+      literature.total,
+      literature.returned,
+    );
+
+    const searchData: SearchStepData = {
+      total: corpusTotal,
+      hitsReturned: literature.returned,
+      sources: [{ name: apiLabel, count: corpusTotal }],
+      chosenApi: payload.apiId,
+      queryVariant: payload.queryVariant,
+      queryUsed: payload.queryUsed,
+      papers: scored,
+    };
+
+    const tail = generateTailStepData(corpusTotal, scored);
+
+    patchSessionStep(setSessions, sessionId, 2, {
+      status: "done",
+      data: searchData,
+      errorMessage: undefined,
+    });
+
+    const tailStepData = [tail.collect, tail.filter, tail.evaluate] as const;
+    for (let i = 0; i < 3; i++) {
+      const stepIndex = 3 + i;
+      await delay(200);
+      patchSessionStep(setSessions, sessionId, stepIndex, { status: "running" });
+      await delay(POST_SEARCH_STEP_DURATIONS_MS[i]);
+      patchSessionStep(setSessions, sessionId, stepIndex, {
+        status: "done",
+        data: tailStepData[i],
+        errorMessage: undefined,
+      });
+    }
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : String(err);
+    console.error("[literature-search] failed:", errorMessage);
+    patchSessionStep(setSessions, sessionId, 2, {
+      status: "error",
+      errorMessage:
+        `${errorMessage} — ensure you are running the desktop app ` +
+        "with outbound network access, then try again.",
+    });
+    patchSessionStep(setSessions, sessionId, 3, {
+      status: "pending",
+      data: undefined,
+      errorMessage: undefined,
+    });
+    patchSessionStep(setSessions, sessionId, 4, {
+      status: "pending",
+      data: undefined,
+      errorMessage: undefined,
+    });
+    patchSessionStep(setSessions, sessionId, 5, {
+      status: "pending",
+      data: undefined,
+      errorMessage: undefined,
+    });
   }
 }
 
@@ -143,6 +262,13 @@ function App() {
           model={chatModel}
           onModelChange={setChatModel}
           enabledModelIds={enabledIds}
+          onRunDatabaseSearch={(sessionId, payload) =>
+            void runDatabaseSearchAndPipelineTail(
+              sessionId,
+              payload,
+              setSessions,
+            )
+          }
         />
       </main>
       <ExportSidebar session={activeSession} />

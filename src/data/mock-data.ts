@@ -1,4 +1,11 @@
-import type { ResearchSession, PipelineStep } from "@/types/research";
+import type {
+  ResearchSession,
+  PipelineStep,
+  CollectStepData,
+  FilterStepData,
+  EvaluateStepData,
+  SearchStepData,
+} from "@/types/research";
 
 const d = (daysAgo: number) => {
   const date = new Date();
@@ -6,10 +13,124 @@ const d = (daysAgo: number) => {
   return date;
 };
 
+/** Mirrors historical demo abstract-filter ratio (~14%). */
+export const MOCK_ABSTRACT_FILTER_SHARE = 412 / 2_893;
+
+const MOCK_EVALUATION_PAPERS: EvaluateStepData["papers"] = [
+  {
+    id: "p1",
+    title: "Lorem ipsum dolor sit amet consectetur adipiscing elit",
+    authors: ["A. Lorem", "B. Ipsum"],
+    year: 2024,
+    journal: "Nature Lorem",
+    relevanceScore: 94,
+  },
+  {
+    id: "p2",
+    title: "Sed ut perspiciatis unde omnis iste natus error",
+    authors: ["C. Dolor", "D. Amet"],
+    year: 2024,
+    journal: "Journal of Ipsum",
+    relevanceScore: 88,
+  },
+  {
+    id: "p3",
+    title: "Nemo enim ipsam voluptatem quia voluptas sit aspernatur",
+    authors: ["E. Consectetur"],
+    year: 2023,
+    journal: "Adipiscing Review",
+    relevanceScore: 82,
+  },
+  {
+    id: "p4",
+    title: "At vero eos et accusamus et iusto odio dignissimos",
+    authors: ["F. Elit", "G. Sed"],
+    year: 2023,
+    journal: "Dolor Quarterly",
+    relevanceScore: 76,
+  },
+  {
+    id: "p5",
+    title: "Nam libero tempore cum soluta nobis eligendi optio",
+    authors: ["H. Eiusmod"],
+    year: 2022,
+    journal: "Lorem Proceedings",
+    relevanceScore: 71,
+  },
+  {
+    id: "p6",
+    title: "Temporibus autem quibusdam et aut officiis debitis",
+    authors: ["I. Tempor", "J. Incididunt"],
+    year: 2022,
+    journal: "Amet Letters",
+    relevanceScore: 63,
+  },
+  {
+    id: "p7",
+    title: "Itaque earum rerum hic tenetur a sapiente delectus",
+    authors: ["K. Labore"],
+    year: 2021,
+    journal: "Tempor Journal",
+    relevanceScore: 55,
+  },
+  {
+    id: "p8",
+    title: "Quis autem vel eum iure reprehenderit voluptate",
+    authors: ["L. Dolore"],
+    year: 2020,
+    journal: "Magna Review",
+    relevanceScore: 47,
+  },
+];
+
+/**
+ * Simulated collect/filter/evaluate from a live corpus total and fetched,
+ * relevance-scored records.
+ */
+export function generateTailStepData(
+  reportedCorpusTotal: number,
+  scoredPapers: EvaluateStepData["papers"],
+): {
+  collect: CollectStepData;
+  filter: FilterStepData;
+  evaluate: EvaluateStepData;
+} {
+  const fetched = scoredPapers.length;
+
+  if (fetched === 0) {
+    return {
+      collect: {
+        total: reportedCorpusTotal,
+        withMetadata: 0,
+      },
+      filter: { before: 0, removed: 0, after: 0 },
+      evaluate: { papers: [] },
+    };
+  }
+
+  const metaGap = Math.max(0, Math.round(fetched * 0.06));
+  const withMetadata = Math.max(1, fetched - metaGap);
+  const before = withMetadata;
+  const removed = Math.min(
+    Math.round(before * MOCK_ABSTRACT_FILTER_SHARE),
+    Math.max(0, before - 1),
+  );
+  const after = Math.max(0, before - removed);
+  const kept = scoredPapers.slice(0, after);
+
+  return {
+    collect: {
+      total: fetched,
+      withMetadata,
+    },
+    filter: { before, removed, after },
+    evaluate: { papers: kept },
+  };
+}
+
 function makePipeline(overrides?: {
   keywordTerms?: string[];
   paperTotal?: number;
-  filterRemoved?: number;
 }): PipelineStep[] {
   const terms = overrides?.keywordTerms ?? [
     "lorem ipsum",
@@ -18,7 +139,6 @@ function makePipeline(overrides?: {
     "sed do eiusmod",
   ];
   const total = overrides?.paperTotal ?? 2_893;
-  const removed = overrides?.filterRemoved ?? 412;
 
   // Build two concept groups from the four keyword terms for the mock combine step
   const group1Terms = [terms[0], terms[1]].filter(Boolean);
@@ -26,6 +146,12 @@ function makePipeline(overrides?: {
   const searchString =
     `(${group1Terms.map((t) => `"${t}"`).join(" OR ")})` +
     ` AND (${group2Terms.map((t) => `"${t}"`).join(" OR ")})`;
+  const preciseSearchString = [group1Terms[0], group2Terms[0]]
+    .filter(Boolean)
+    .map((t) => `"${t}"`)
+    .join(" AND ");
+
+  const tail = generateTailStepData(total, MOCK_EVALUATION_PAPERS);
 
   return [
     {
@@ -51,6 +177,7 @@ function makePipeline(overrides?: {
           { label: "Concept B", terms: group2Terms },
         ],
         searchString,
+        preciseSearchString,
       },
     },
     {
@@ -59,105 +186,31 @@ function makePipeline(overrides?: {
       status: "done",
       data: {
         total,
-        sources: [
-          { name: "Semantic Scholar", count: Math.round(total * 0.43) },
-          { name: "PubMed", count: Math.round(total * 0.30) },
-          { name: "arXiv", count: Math.round(total * 0.19) },
-          { name: "CrossRef", count: Math.round(total * 0.08) },
-        ],
-      },
+        hitsReturned: MOCK_EVALUATION_PAPERS.length,
+        sources: [{ name: "Semantic Scholar", count: total }],
+        chosenApi: "semantic-scholar",
+        queryVariant: "broad",
+        queryUsed: searchString,
+        papers: MOCK_EVALUATION_PAPERS,
+      } satisfies SearchStepData,
     },
     {
       id: "collect",
       label: "Paper collection",
       status: "done",
-      data: {
-        total,
-        withMetadata: total - Math.round(total * 0.06),
-      },
+      data: tail.collect,
     },
     {
       id: "filter",
       label: "Abstract filter",
       status: "done",
-      data: {
-        before: total - Math.round(total * 0.06),
-        removed,
-        after: total - Math.round(total * 0.06) - removed,
-      },
+      data: tail.filter,
     },
     {
       id: "evaluate",
       label: "Relevance scoring",
       status: "done",
-      data: {
-        papers: [
-          {
-            id: "p1",
-            title: "Lorem ipsum dolor sit amet consectetur adipiscing elit",
-            authors: ["A. Lorem", "B. Ipsum"],
-            year: 2024,
-            journal: "Nature Lorem",
-            relevanceScore: 94,
-          },
-          {
-            id: "p2",
-            title: "Sed ut perspiciatis unde omnis iste natus error",
-            authors: ["C. Dolor", "D. Amet"],
-            year: 2024,
-            journal: "Journal of Ipsum",
-            relevanceScore: 88,
-          },
-          {
-            id: "p3",
-            title: "Nemo enim ipsam voluptatem quia voluptas sit aspernatur",
-            authors: ["E. Consectetur"],
-            year: 2023,
-            journal: "Adipiscing Review",
-            relevanceScore: 82,
-          },
-          {
-            id: "p4",
-            title: "At vero eos et accusamus et iusto odio dignissimos",
-            authors: ["F. Elit", "G. Sed"],
-            year: 2023,
-            journal: "Dolor Quarterly",
-            relevanceScore: 76,
-          },
-          {
-            id: "p5",
-            title: "Nam libero tempore cum soluta nobis eligendi optio",
-            authors: ["H. Eiusmod"],
-            year: 2022,
-            journal: "Lorem Proceedings",
-            relevanceScore: 71,
-          },
-          {
-            id: "p6",
-            title: "Temporibus autem quibusdam et aut officiis debitis",
-            authors: ["I. Tempor", "J. Incididunt"],
-            year: 2022,
-            journal: "Amet Letters",
-            relevanceScore: 63,
-          },
-          {
-            id: "p7",
-            title: "Itaque earum rerum hic tenetur a sapiente delectus",
-            authors: ["K. Labore"],
-            year: 2021,
-            journal: "Tempor Journal",
-            relevanceScore: 55,
-          },
-          {
-            id: "p8",
-            title: "Quis autem vel eum iure reprehenderit voluptate",
-            authors: ["L. Dolore"],
-            year: 2020,
-            journal: "Magna Review",
-            relevanceScore: 47,
-          },
-        ],
-      },
+      data: tail.evaluate,
     },
   ];
 }
@@ -170,7 +223,6 @@ export const MOCK_SESSIONS: ResearchSession[] = [
     steps: makePipeline({
       keywordTerms: ["lorem ipsum", "dolor sit amet", "consectetur adipiscing", "sed do eiusmod"],
       paperTotal: 2_893,
-      filterRemoved: 412,
     }),
   },
   {
@@ -180,7 +232,6 @@ export const MOCK_SESSIONS: ResearchSession[] = [
     steps: makePipeline({
       keywordTerms: ["perspiciatis", "omnis iste natus", "voluptatem", "architecto beatae"],
       paperTotal: 1_740,
-      filterRemoved: 284,
     }),
   },
   {
@@ -190,7 +241,6 @@ export const MOCK_SESSIONS: ResearchSession[] = [
     steps: makePipeline({
       keywordTerms: ["iure reprehenderit", "voluptate velit", "quam nihil", "molestiae consequatur"],
       paperTotal: 3_210,
-      filterRemoved: 531,
     }),
   },
   {
@@ -200,7 +250,6 @@ export const MOCK_SESSIONS: ResearchSession[] = [
     steps: makePipeline({
       keywordTerms: ["temporibus autem", "officiis debitis", "rerum necessitatibus", "saepe eveniet"],
       paperTotal: 2_105,
-      filterRemoved: 347,
     }),
   },
   {
@@ -210,7 +259,6 @@ export const MOCK_SESSIONS: ResearchSession[] = [
     steps: makePipeline({
       keywordTerms: ["libero tempore", "soluta nobis", "eligendi optio", "cumque nihil"],
       paperTotal: 988,
-      filterRemoved: 163,
     }),
   },
 ];
@@ -225,17 +273,4 @@ export function createEmptySession(id: string, query: string): ResearchSession {
     { id: "evaluate", label: "Relevance scoring",   status: "pending" },
   ];
   return { id, query, createdAt: new Date(), steps: STEP_LABELS };
-}
-
-export function generateStepData(query: string): PipelineStep["data"][] {
-  const words = query.trim().split(/\s+/);
-  const full = makePipeline({
-    keywordTerms: [
-      words.slice(0, 2).join(" "),
-      words.slice(1, 3).join(" ") || "lorem ipsum",
-      words.slice(2, 4).join(" ") || "dolor amet",
-      "ut labore dolore",
-    ],
-  });
-  return full.map((s) => s.data);
 }

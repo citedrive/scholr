@@ -1,11 +1,21 @@
 import type { ResearchSession } from "@/types/research";
-import { PipelineStepCard } from "./PipelineStepCard";
+import {
+  PipelineStepCard,
+  type DatabaseSearchRunPayload,
+} from "./PipelineStepCard";
 
 interface ResearchViewProps {
   session: ResearchSession;
+  onRunDatabaseSearch: (
+    sessionId: string,
+    payload: DatabaseSearchRunPayload,
+  ) => void;
 }
 
-export function ResearchView({ session }: ResearchViewProps) {
+export function ResearchView({
+  session,
+  onRunDatabaseSearch,
+}: ResearchViewProps) {
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto">
@@ -21,7 +31,15 @@ export function ResearchView({ session }: ResearchViewProps) {
           {/* Pipeline */}
           <div className="flex flex-col gap-3">
             {session.steps.map((step, i) => (
-              <PipelineStepCard key={step.id} step={step} index={i} />
+              <PipelineStepCard
+                key={step.id}
+                session={session}
+                step={step}
+                index={i}
+                onRunDatabaseSearch={(payload) =>
+                  onRunDatabaseSearch(session.id, payload)
+                }
+              />
             ))}
           </div>
         </div>
