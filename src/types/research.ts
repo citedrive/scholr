@@ -1,4 +1,4 @@
-import type { SearchApiId } from "@/lib/search-databases";
+import type { SearchApiId } from "@/shared/lib/search-databases";
 
 export type StepStatus = "pending" | "running" | "done" | "error";
 
@@ -17,6 +17,12 @@ export interface KeywordResult {
 
 export type SearchQueryVariant = "broad" | "narrow";
 
+export type DatabaseSearchRunPayload = {
+  apiId: SearchApiId;
+  queryVariant: SearchQueryVariant;
+  queryUsed: string;
+};
+
 export interface SearchSource {
   name: string;
   count: number;
@@ -31,6 +37,9 @@ export interface Paper {
   relevanceScore: number;
   doi?: string;
 }
+
+/** Record from the literature index before heuristic relevance is attached. */
+export type LiteratureHit = Omit<Paper, "relevanceScore">;
 
 export interface KeywordsStepData {
   keywords: KeywordResult[];
@@ -59,7 +68,7 @@ export interface SearchStepData {
   queryVariant: SearchQueryVariant;
   /** Boolean string sent to the selected database (general or narrow). */
   queryUsed: string;
-  /** Retrieved records with pseudo relevance scores for quick review. */
+  /** Retrieved records with heuristic relevance scores for quick review. */
   papers: Paper[];
 }
 
