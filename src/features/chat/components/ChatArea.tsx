@@ -9,6 +9,7 @@ interface ChatAreaProps {
   onModelChange: (id: ChatModelId) => void;
   enabledModelIds: ChatModelId[];
   onRunDatabaseSearch: (payload: DatabaseSearchRunPayload) => void;
+  searchDisabled?: boolean;
 }
 
 export function ChatArea({
@@ -18,6 +19,7 @@ export function ChatArea({
   onModelChange,
   enabledModelIds,
   onRunDatabaseSearch,
+  searchDisabled = false,
 }: ChatAreaProps) {
   if (session) {
     return (
@@ -31,12 +33,18 @@ export function ChatArea({
   return (
     <div className="flex flex-1 items-center justify-center px-6">
       <div className="w-full max-w-2xl">
+        {searchDisabled && (
+          <p className="mb-4 text-center text-sm text-muted-foreground">
+            Please choose a vault folder first.
+          </p>
+        )}
         <ChatInput
           onSubmit={onSubmit}
           borderless
           model={model}
           onModelChange={onModelChange}
           enabledModelIds={enabledModelIds}
+          disabled={searchDisabled}
         />
       </div>
     </div>

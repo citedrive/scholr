@@ -27,6 +27,15 @@ interface SettingsDialogProps {
   onSettingsChange: (
     next: Record<ChatModelId, ProviderModelSettings>,
   ) => void;
+  vaultPath: string | null;
+  onChangeVault: () => void;
+}
+
+function shortenPath(path: string, max = 48): string {
+  if (path.length <= max) return path;
+  const head = Math.floor((max - 1) / 2);
+  const tail = max - 1 - head;
+  return `${path.slice(0, head)}…${path.slice(-tail)}`;
 }
 
 const PROVIDERS_WITH_KEYS: ChatModelId[] = ["chatgpt", "claude"];
@@ -36,6 +45,8 @@ export function SettingsDialog({
   onOpenChange,
   settings,
   onSettingsChange,
+  vaultPath,
+  onChangeVault,
 }: SettingsDialogProps) {
   const [keyInputs, setKeyInputs] = useState<Partial<Record<ChatModelId, string>>>({});
   const [keyStatuses, setKeyStatuses] = useState<Partial<Record<ChatModelId, boolean>>>({});
@@ -103,6 +114,28 @@ export function SettingsDialog({
             </DialogDescription>
 
             <div className="mt-6 flex flex-col gap-5">
+              <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+                <span className="text-sm font-medium">Vault</span>
+                <p className="text-xs text-muted-foreground">
+                  Folder where searches are stored as JSON files.
+                </p>
+                <p
+                  className="truncate font-mono text-xs text-foreground"
+                  title={vaultPath ?? undefined}
+                >
+                  {vaultPath ? shortenPath(vaultPath) : "No folder selected"}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="self-start"
+                  onClick={onChangeVault}
+                >
+                  Change vault folder
+                </Button>
+              </div>
+
               {CHAT_MODEL_OPTIONS.map((opt) => {
                 const row = settings[opt.id];
                 const needsKey = PROVIDERS_WITH_KEYS.includes(opt.id);
